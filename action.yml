@@ -7,8 +7,8 @@ inputs:
   prepareScript:
     description: "The command to use to build, this script runs after 'version' flow, and before 'publish' flow"
     required: false
-  tag:
-    description: "The name of the tag to use for snapshot publishing"
+  mode:
+    description: "snapshot | stable # default is snapshot. under the hood this will run `changeset version --snapshot` or `changeset version && git commit -m "
     required: true
   cwd:
     description: Sets the cwd for the node process. Default to `process.cwd()`
@@ -17,6 +17,15 @@ inputs:
     description: Sets up the git user for commits as `"github-actions[bot]"`. Default to `true`
     required: false
     default: 'true'
+  commit:
+    description: Whether to commit the changeset.
+    required: false
+  tag:
+    description: Whether to tag the changeset.
+    required: false
+  comment:
+    description: Whether to upsert comment to PR.
+    required: false
 outputs:
   published:
     description: A boolean value to indicate whether a publishing is happened or not

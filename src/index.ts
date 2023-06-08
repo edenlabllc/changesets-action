@@ -1,10 +1,14 @@
 import * as core from "@actions/core";
 import fs from "fs-extra";
-import * as github from "@actions/github";
-
+import { simpleGit } from "simple-git";
 import { runPublish, runVersion } from "./run";
 import readChangesetState from "./readChangesetState";
-import { configureNpmRc, execWithOutput, setupGitUser } from "./utils";
+import {
+  configureNpmRc,
+  execWithOutput,
+  getBooleanInput,
+  setupGitUser,
+} from "./utils";
 import { upsertComment } from "./github";
 
 (async () => {
@@ -16,26 +20,26 @@ import { upsertComment } from "./github";
     return;
   }
 
-  if (!npmToken) {
-    core.setFailed("Please add the NPM_TOKEN to the changesets action");
-    return;
-  }
+  // if (!npmToken) {
+  //   core.setFailed("Please add the NPM_TOKEN to the changesets action");
+  //   return;
+  // }
 
-  const inputCwd = core.getInput("cwd");
+  const inputCwd = core.getInput("cwd") || undefined;
 
   if (inputCwd) {
     console.log("changing directory to the one given as the input: ", inputCwd);
     process.chdir(inputCwd);
   }
 
-  let shouldeSetupGitUser = core.getBooleanInput("setupGitUser");
+  let shouldSetupGitUser = core.getBooleanInput("setupGitUser");
 
-  if (shouldeSetupGitUser) {
+  if (shouldSetupGitUser) {
     console.log("setting git user");
     await setupGitUser();
   }
 
-  await configureNpmRc(npmToken);
+  // await configureNpmRc(npmToken);
 
   console.log("setting GitHub credentials");
   await fs.writeFile(
@@ -46,8 +50,10 @@ import { upsertComment } from "./github";
   let { changesets } = await readChangesetState(inputCwd);
   let hasChangesets = changesets.length !== 0;
 
-  core.setOutput("published", "false");
-  core.setOutput("publishedPackages", "[]");
+  // core.setOutput("published", "false");
+  // core.setOutput("publishedPackages", "[]");
+  core.setOutput("upgraded", "false");
+  core.setOutput("upgradedPackages", "[]");
   core.setOutput("hasChangesets", String(hasChangesets));
 
   if (!hasChangesets) {
@@ -55,20 +61,26 @@ import { upsertComment } from "./github";
     return;
   }
 
-  let tagName = core.getInput("tag");
+  let mode = core.getInput("mode") as "snapshot" | "stable";
 
-  if (!tagName) {
+  if (!mode) {
     core.setFailed(
-      "Please configure the 'tag' name you wish to use for the release."
+      "Please configure the 'mode', choose between snapshot or stable mode."
     );
 
     return;
   }
 
-  await runVersion({
-    tagName,
+  const { upgraded, upgradedPackages } = await runVersion({
+    mode,
     cwd: inputCwd,
   });
+
+  if (upgraded) {
+    core.setOutput("upgraded", "true");
+    core.setOutput("upgradedPackages", JSON.stringify(upgradedPackages));
+    console.log("Upgraded packages:", JSON.stringify(upgradedPackages));
+  }
 
   let prepareScript = core.getInput("prepareScript");
 
@@ -87,30 +99,58 @@ import { upsertComment } from "./github";
     }
   }
 
-  const result = await runPublish({
-    tagName,
-    cwd: inputCwd,
-  });
+  // const result = await runPublish({
+  //   tagName: mode,
+  //   cwd: inputCwd,
+  // });
+  //
+  // console.log("Publish result:", JSON.stringify(result));
+  //
+  // if (result.published) {
+  //   core.setOutput("published", "true");
+  //   core.setOutput(
+  //     "publishedPackages",
+  //     JSON.stringify(result.publishedPackages)
+  //   );
+  // }
 
-  console.log("Publish result:", JSON.stringify(result));
+  const shouldCreateCommit = getBooleanInput("commit") ?? mode === "stable";
+  const shouldCreateTag =
+    shouldCreateCommit && (getBooleanInput("tag") ?? mode === "stable");
 
-  if (result.published) {
-    core.setOutput("published", "true");
-    core.setOutput(
-      "publishedPackages",
-      JSON.stringify(result.publishedPackages)
-    );
+  if (upgraded) {
+    if (shouldCreateCommit) {
+      await simpleGit(inputCwd).add(".").commit(`Version Packages`);
+    }
+
+    if (shouldCreateTag) {
+      await Promise.all(
+        upgradedPackages.map((pkg) =>
+          simpleGit(inputCwd).addAnnotatedTag(
+            `${pkg.name}_${pkg.version}`,
+            `${pkg.name} ${pkg.version}`
+          )
+        )
+      );
+    }
+    if (shouldCreateCommit) {
+      await simpleGit(inputCwd).push(["origin", "--follow-tags"]);
+    }
   }
 
-  try {
-    await upsertComment({
-      token: githubToken,
-      publishResult: result,
-      tagName,
-    });
-  } catch (e) {
-    core.info(`Failed to create/update github comment.`);
-    core.warning(e as Error);
+  const shouldUpsertPRComment = getBooleanInput("comment") ?? mode !== "stable";
+
+  if (shouldUpsertPRComment) {
+    try {
+      await upsertComment({
+        token: githubToken,
+        upgradeResult: { upgraded, upgradedPackages },
+        tagName: mode,
+      });
+    } catch (e) {
+      core.info(`Failed to create/update github comment.`);
+      core.warning(e as Error);
+    }
   }
 })().catch((err) => {
   console.error(err);

@@ -4,9 +4,11 @@ import {
   requireChangesetsCliPkgJson,
 } from "./utils";
 import resolveFrom from "resolve-from";
+import { simpleGit } from "simple-git";
 
 type PublishOptions = {
-  tagName: string;
+  mode?: "snapshot" | "stable";
+  tagName?: string;
   cwd?: string;
 };
 
@@ -21,10 +23,17 @@ export type PublishResult =
       published: false;
     };
 
+export type UpgradedPackage = { name: string; version: string };
+
+export type UpgradeResult = {
+  upgraded: boolean;
+  upgradedPackages: UpgradedPackage[];
+};
+
 export async function runVersion({
-  tagName,
+  mode,
   cwd = process.cwd(),
-}: PublishOptions) {
+}: PublishOptions): Promise<UpgradeResult> {
   requireChangesetsCliPkgJson(cwd);
   console.info(`Running version workflow from cwd:`, cwd);
 
@@ -33,8 +42,7 @@ export async function runVersion({
     [
       resolveFrom(cwd, "@changesets/cli/bin.js"),
       "version",
-      "--snapshot",
-      tagName,
+      mode === "snapshot" ? "--snapshot" : "",
     ],
     {
       cwd,
@@ -45,6 +53,27 @@ export async function runVersion({
     throw new Error(
       "Changeset command exited with non-zero code. Please check the output and fix the issue."
     );
+  } else {
+    console.info(`Changeset version workflow completed successfully.`);
+
+    // get list of changed files
+    const res = await simpleGit().status();
+    // read only package.json files from the list
+    const packageJsonFiles = res.modified.filter((file) =>
+      file.includes("package.json")
+    );
+    // read package name and version from each package.json file
+    const packages = packageJsonFiles.map((file) => {
+      // read package.json file with fs
+      console.log("File path:", resolveFrom(cwd, `./${file}`));
+      const pkg = require(resolveFrom(cwd, `./${file}`));
+      return { name: pkg.name, version: pkg.version };
+    });
+
+    return {
+      upgraded: packages.length > 0,
+      upgradedPackages: packages,
+    };
   }
 }
 
@@ -62,7 +91,7 @@ export async function runPublish({
       "publish",
       "--no-git-tag",
       "--tag",
-      tagName,
+      tagName!,
     ],
     {
       cwd,
@@ -88,14 +117,14 @@ export async function runPublish({
   }
 
   const publishedAsString = releasedPackages
-    .map((t) => `${t.name}@${t.version}`)
+    .map((t) => `${t.name}_${t.version}`)
     .join("\n");
 
   const released = releasedPackages.length > 0;
 
   if (released) {
     console.info(
-      `Published the following pakages (total of ${releasedPackages.length}): ${publishedAsString}`
+      `Published the following packages (total of ${releasedPackages.length}): ${publishedAsString}`
     );
   } else {
     console.info(`No packages were published...`);

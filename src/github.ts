@@ -1,16 +1,16 @@
 import * as github from "@actions/github";
 
-import { PublishedPackage, PublishResult } from "./run";
+import {PublishedPackage, PublishResult, UpgradeResult} from "./run";
 
 const SNAPSHOT_COMMENT_IDENTIFIER = `<!-- changesetsSnapshotPrCommentKey -->`;
 
 function formatTable(packages: PublishedPackage[]): string {
-  const header = `| Package | Version | Info |\n|------|---------|----|`;
+  const header = `| Package | Version |\n|------|---------|`;
 
   return `${header}\n${packages
     .map(
       (t) =>
-        `| \`${t.name}\` | \`${t.version}\` | [npm ↗︎](https://www.npmjs.com/package/${t.name}/v/${t.version}) [unpkg ↗︎](https://unpkg.com/browse/${t.name}@${t.version}/) |`
+        `| \`${t.name}\` | \`${t.version}\` |`
     )
     .join("\n")}`;
 }
@@ -18,7 +18,7 @@ function formatTable(packages: PublishedPackage[]): string {
 export async function upsertComment(options: {
   tagName: string;
   token: string;
-  publishResult: PublishResult;
+  upgradeResult: UpgradeResult;
 }) {
   const octokit = github.getOctokit(options.token);
   const issueContext = github.context.issue;
@@ -27,18 +27,15 @@ export async function upsertComment(options: {
     console.log(
       `Failed to locate a PR associated with the Action context, skipping Snapshot info comment...`
     );
+    return;
   }
 
   let commentBody =
-    options.publishResult.published === true
-      ? `### 🚀 Snapshot Release (\`${
-          options.tagName
-        }\`)\n\nThe latest changes of this PR are available as \`${
-          options.tagName
-        }\` on npm (based on the declared \`changesets\`):\n${formatTable(
-          options.publishResult.publishedPackages
+    options.upgradeResult.upgraded
+      ? `### 🚀 Snapshot Release\n\nThe latest changes of this PR are available as:\n${formatTable(
+          options.upgradeResult.upgradedPackages
         )}`
-      : `The latest changes of this PR are not available as \`${options.tagName}\`, since there are no linked \`changesets\` for this PR.`;
+      : `Nothing were upgraded, since there are no linked \`changesets\` for this PR.`;
 
   commentBody = `${SNAPSHOT_COMMENT_IDENTIFIER}\n${commentBody}`;
 

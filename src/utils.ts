@@ -1,6 +1,7 @@
 import { exec } from "@actions/exec";
 import resolveFrom from "resolve-from";
 import fs from "fs-extra";
+import { getInput, InputOptions } from "@actions/core";
 
 export async function execWithOutput(
   command: string,
@@ -99,4 +100,16 @@ export async function configureNpmRc(npmToken: string) {
       `//registry.npmjs.org/:_authToken=${npmToken}\n`
     );
   }
+}
+
+export function getBooleanInput(
+  name: string,
+  options?: InputOptions
+): boolean | undefined {
+  const trueValue = ["true", "True", "TRUE"];
+  const falseValue = ["false", "False", "FALSE"];
+  const val = getInput(name, options);
+  if (trueValue.includes(val)) return true;
+  if (falseValue.includes(val)) return false;
+  return undefined;
 }
