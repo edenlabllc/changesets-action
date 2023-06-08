@@ -1,10 +1,11 @@
+import * as path from "path";
+import resolveFrom from "resolve-from";
+import { simpleGit } from "simple-git";
 import {
   execWithOutput,
   extractPublishedPackages,
   requireChangesetsCliPkgJson,
 } from "./utils";
-import resolveFrom from "resolve-from";
-import { simpleGit } from "simple-git";
 
 type PublishOptions = {
   mode?: "snapshot" | "stable";
@@ -23,7 +24,13 @@ export type PublishResult =
       published: false;
     };
 
-export type UpgradedPackage = { name: string; version: string };
+export type UpgradedPackage = {
+  name: string;
+  version: string;
+  path: string;
+  // This could be anything you may need in CI, e.g. dockerFile path
+  config: any;
+};
 
 export type UpgradeResult = {
   upgraded: boolean;
@@ -67,7 +74,8 @@ export async function runVersion({
       // read package.json file with fs
       console.log("File path:", resolveFrom(cwd, `./${file}`));
       const pkg = require(resolveFrom(cwd, `./${file}`));
-      return { name: pkg.name, version: pkg.version };
+      const pkgPath = path.dirname(file);
+      return { name: pkg.name, version: pkg.version, path: pkgPath, config: pkg.config };
     });
 
     return {

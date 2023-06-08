@@ -1,6 +1,6 @@
 import * as github from "@actions/github";
 
-import {PublishedPackage, PublishResult, UpgradeResult} from "./run";
+import { PublishedPackage, PublishResult, UpgradeResult } from "./run";
 
 const SNAPSHOT_COMMENT_IDENTIFIER = `<!-- changesetsSnapshotPrCommentKey -->`;
 
@@ -8,10 +8,7 @@ function formatTable(packages: PublishedPackage[]): string {
   const header = `| Package | Version |\n|------|---------|`;
 
   return `${header}\n${packages
-    .map(
-      (t) =>
-        `| \`${t.name}\` | \`${t.version}\` |`
-    )
+    .map((t) => `| \`${t.name}\` | \`${t.version}\` |`)
     .join("\n")}`;
 }
 
@@ -30,12 +27,11 @@ export async function upsertComment(options: {
     return;
   }
 
-  let commentBody =
-    options.upgradeResult.upgraded
-      ? `### 🚀 Snapshot Release\n\nThe latest changes of this PR are available as:\n${formatTable(
-          options.upgradeResult.upgradedPackages
-        )}`
-      : `Nothing were upgraded, since there are no linked \`changesets\` for this PR.`;
+  let commentBody = options.upgradeResult.upgraded
+    ? `### 🚀 Snapshot Release\n\nThe latest changes of this PR are available as:\n${formatTable(
+        options.upgradeResult.upgradedPackages
+      )}`
+    : `Nothing were upgraded, since there are no linked \`changesets\` for this PR.`;
 
   commentBody = `${SNAPSHOT_COMMENT_IDENTIFIER}\n${commentBody}`;
 
