@@ -1,7 +1,22 @@
+import unified from "unified";
+import remarkParse from "remark-parse";
+import remarkStringify from "remark-stringify";
 import { exec } from "@actions/exec";
 import resolveFrom from "resolve-from";
+import { u } from "unist-builder";
+// @ts-ignore
+import mdastToString from "mdast-util-to-string";
 import fs from "fs-extra";
 import { getInput, InputOptions } from "@actions/core";
+import { Node } from "unist";
+import { UpgradedPackage } from "./run";
+
+export const BumpLevels = {
+  dep: 0,
+  patch: 1,
+  minor: 2,
+  major: 3,
+} as const;
 
 export async function execWithOutput(
   command: string,
@@ -112,4 +127,69 @@ export function getBooleanInput(
   if (trueValue.includes(val)) return true;
   if (falseValue.includes(val)) return false;
   return undefined;
+}
+
+export function getChangelogEntry(changelog: string, version: string) {
+  let ast = unified().use(remarkParse).parse(changelog);
+
+  let highestLevel: number = BumpLevels.dep;
+
+  // @ts-ignore
+  let nodes = ast.children as Array<any>;
+  let headingStartInfo:
+    | {
+        index: number;
+        depth: number;
+      }
+    | undefined;
+  let endIndex: number | undefined;
+
+  for (let i = 0; i < nodes.length; i++) {
+    let node = nodes[i];
+    if (node.type === "heading") {
+      let stringified: string = mdastToString(node);
+      let match = stringified.toLowerCase().match(/(major|minor|patch)/);
+      if (match !== null) {
+        let level = BumpLevels[match[0] as "major" | "minor" | "patch"];
+        highestLevel = Math.max(level, highestLevel);
+      }
+      if (headingStartInfo === undefined && stringified === version) {
+        headingStartInfo = {
+          index: i,
+          depth: node.depth,
+        };
+        continue;
+      }
+      if (
+        endIndex === undefined &&
+        headingStartInfo !== undefined &&
+        headingStartInfo.depth === node.depth
+      ) {
+        endIndex = i;
+        break;
+      }
+    }
+  }
+  if (headingStartInfo) {
+    // @ts-ignore
+    ast.children = (ast.children as any).slice(
+      headingStartInfo.index + 1,
+      endIndex
+    );
+  }
+  return ast;
+}
+
+export function concatChangelogEntries(
+  changeLogs: { pkg: UpgradedPackage; ast: Node }[]
+) {
+  const children = changeLogs.flatMap(({ ast, pkg }) => {
+    return [
+      u("heading", { depth: 2 }, [u("text", `${pkg.name} v${pkg.version}`)]),
+      // @ts-ignore
+      ...ast.children,
+    ];
+  });
+  const tree = u("root", children);
+  return unified().use(remarkStringify).stringify(tree);
 }

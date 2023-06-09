@@ -4,7 +4,7 @@ runs:
   using: "node16"
   main: "dist/index.js"
 inputs:
-  prepareScript:
+  prepare-script:
     description: "The command to use to build, this script runs after 'version' flow, and before 'publish' flow"
     required: false
   mode:
@@ -13,7 +13,7 @@ inputs:
   cwd:
     description: Sets the cwd for the node process. Default to `process.cwd()`
     required: false
-  setupGitUser:
+  setup-git-user:
     description: Sets up the git user for commits as `"github-actions[bot]"`. Default to `true`
     required: false
     default: 'true'
@@ -23,16 +23,25 @@ inputs:
   tag:
     description: Whether to tag the changeset.
     required: false
+  github-release:
+    description: "A boolean value to indicate whether to create Github release"
+    required: false
   comment:
     description: Whether to upsert comment to PR.
+    required: false
+  release-codenames:
+    description: An array of dictionaries that containing the words to use for generating the release codename.
+    required: false
+  snapshot-tag:
+    description: The tag to use for snapshot releases. Default to current branch name.
     required: false
 outputs:
   published:
     description: A boolean value to indicate whether a publishing is happened or not
-  publishedPackages:
+  published-packages:
     description: >
       A JSON array to present the published packages. The format is `[{"name": "@xx/xx", "version": "1.2.0"}, {"name": "@xx/xy", "version": "0.8.9"}]`
-  hasChangesets:
+  has-changesets:
     description: A boolean about whether there were changesets. Useful if you want to create your own publishing functionality.
 branding:
   icon: "package"

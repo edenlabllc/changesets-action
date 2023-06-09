@@ -38,19 +38,27 @@ export type UpgradeResult = {
 };
 
 export async function runVersion({
+  tagName,
   mode,
   cwd = process.cwd(),
 }: PublishOptions): Promise<UpgradeResult> {
   requireChangesetsCliPkgJson(cwd);
   console.info(`Running version workflow from cwd:`, cwd);
 
-  let changesetVersionOutput = await execWithOutput(
-    "node",
-    [
+  const cmd = {
+    stable: [resolveFrom(cwd, "@changesets/cli/bin.js"), "version"],
+    snapshot: [
       resolveFrom(cwd, "@changesets/cli/bin.js"),
       "version",
-      mode === "snapshot" ? "--snapshot" : "",
+      "--snapshot",
+      tagName,
     ],
+  };
+
+  let changesetVersionOutput = await execWithOutput(
+    "node",
+    // @ts-ignore
+    cmd[mode],
     {
       cwd,
     }
@@ -62,7 +70,6 @@ export async function runVersion({
     );
   } else {
     console.info(`Changeset version workflow completed successfully.`);
-
     // get list of changed files
     const res = await simpleGit().status();
     // read only package.json files from the list
@@ -70,17 +77,28 @@ export async function runVersion({
       file.includes("package.json")
     );
     // read package name and version from each package.json file
-    const packages = packageJsonFiles.map((file) => {
-      // read package.json file with fs
-      console.log("File path:", resolveFrom(cwd, `./${file}`));
-      const pkg = require(resolveFrom(cwd, `./${file}`));
-      const pkgPath = path.dirname(file);
-      return { name: pkg.name, version: pkg.version, path: pkgPath, config: pkg.config };
-    });
+    const packages = packageJsonFiles
+      .map((file) => {
+        // read package.json file with fs
+        console.log("File path:", resolveFrom(cwd, `./${file}`));
+        const pkg = require(resolveFrom(cwd, `./${file}`));
+        const pkgPath = path.dirname(file);
+
+        // if package.json does not have config, it is not deployable app
+        if (!pkg.config) return;
+
+        return {
+          name: pkg.name,
+          version: pkg.version,
+          path: pkgPath,
+          config: pkg.config,
+        };
+      })
+      .filter(Boolean);
 
     return {
       upgraded: packages.length > 0,
-      upgradedPackages: packages,
+      upgradedPackages: packages as any,
     };
   }
 }
