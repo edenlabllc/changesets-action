@@ -7,7 +7,7 @@ This action is helpful if you wish to create an automated release flow in trunk 
 The following flow is being executed:
 
 - Check for available `changeset` files in the PR.
-- Runs `version` flow in `snapshot` mode (`--snapshot` flag, `x.y.z-{commit-hash}-develop` schema) and stable mode (`x.y.z` schema).
+- Runs `version` flow in `snapshot` mode (`--snapshot` flag, `x.y.z-{commit-hash}-(develop|branch-name)` schema) and stable mode (`x.y.z` schema).
 - Calculate changes which packages were changed and should be released.
 - Runs user script for build/preparation for the release.
 - Create commit (and annotated tags) with changed versions, removed changesets and updated changelogs. By default, works only in `stable` mode, could be overridden manually.
@@ -17,6 +17,27 @@ The following flow is being executed:
 <img width="1060" src="./docs/example.png">
 
 ## Usage
+
+### Configure your changesets
+
+```json
+{
+  "$schema": "https://unpkg.com/@changesets/config@2.3.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "access": "restricted",
+  "baseBranch": "main",
+  "snapshot": {
+    "useCalculatedVersion": true,
+    // this part is important. It will generate a version like 1.2.3-d3d32d-branch-name
+    "prereleaseTemplate": "{commit}-{tag}"
+  },
+  "updateInternalDependencies": "patch",
+  "ignore": []
+}
+```
 
 ### Inputs
 - `mode`: - "snapshot | stable. Default is snapshot. Snapshot releases are meant to be used for canary releases (could be used in trunk branch and feature branches), and stable releases are meant to be used for stable releases.
