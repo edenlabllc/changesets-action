@@ -6,10 +6,12 @@ import {
   extractPublishedPackages,
   requireChangesetsCliPkgJson,
 } from "./utils";
+import { NewChangeset } from "@changesets/types";
 
 type PublishOptions = {
   mode?: "snapshot" | "stable";
   tagName?: string;
+  changesets?: NewChangeset[];
   cwd?: string;
 };
 
@@ -40,6 +42,7 @@ export type UpgradeResult = {
 export async function runVersion({
   tagName,
   mode,
+  changesets,
   cwd = process.cwd(),
 }: PublishOptions): Promise<UpgradeResult> {
   requireChangesetsCliPkgJson(cwd);
@@ -94,7 +97,18 @@ export async function runVersion({
           config: pkg.config,
         };
       })
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((pkg) => {
+        // filter by changesets list in changeset[].releases[].name
+        const pkgName = pkg?.name;
+        const pkgChangeset = changesets?.find(
+          (changeset) =>
+            changeset.releases.find((release) => {
+              return release.name === pkgName;
+            }) !== undefined
+        );
+        return pkgChangeset !== undefined;
+      });
 
     return {
       upgraded: packages.length > 0,

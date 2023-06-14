@@ -9,6 +9,8 @@ import {
   createRelease,
   upsertComment,
 } from "./github";
+import { Mode } from "./types";
+import { exitPre } from "./pre";
 
 (async () => {
   let githubToken = process.env.GITHUB_TOKEN;
@@ -63,7 +65,17 @@ import {
     `machine github.com\nlogin github-actions[bot]\npassword ${githubToken}`
   );
 
-  let { changesets } = await readChangesetState(inputCwd);
+  let mode = core.getInput("mode") as Mode;
+
+  if (!mode) {
+    core.setFailed(
+      "Please configure the 'mode', choose between snapshot or stable mode."
+    );
+
+    return;
+  }
+
+  let { changesets } = await readChangesetState(mode, inputCwd);
   let hasChangesets = changesets.length !== 0;
   core.setOutput("upgraded", "false");
   core.setOutput("upgraded-packages", "[]");
@@ -71,16 +83,6 @@ import {
 
   if (!hasChangesets) {
     console.log("No changesets found");
-    return;
-  }
-
-  let mode = core.getInput("mode") as "snapshot" | "stable";
-
-  if (!mode) {
-    core.setFailed(
-      "Please configure the 'mode', choose between snapshot or stable mode."
-    );
-
     return;
   }
 
@@ -112,6 +114,7 @@ import {
   const { upgraded, upgradedPackages } = await runVersion({
     tagName: snapshotTag,
     mode,
+    changesets,
     cwd: inputCwd,
   });
 
@@ -162,7 +165,22 @@ import {
 
   if (upgraded) {
     if (shouldCreateCommit) {
-      await simpleGit(inputCwd).add(".").commit(`Version Packages`);
+      if (mode === "stable") {
+        await exitPre(inputCwd);
+        await simpleGit(inputCwd)
+          .add(".")
+          .commit(
+            `Deleting changesets and updating change logs for package updates.`
+          );
+      } else {
+        await simpleGit(inputCwd).add(".changeset/prerelease.json");
+
+        upgradedPackages.forEach((pkg) => {
+          simpleGit(inputCwd).add(`${pkg.path}/package.json`);
+        });
+
+        await simpleGit(inputCwd).commit(`Applying package updates.`);
+      }
     }
 
     if (shouldCreateTag) {

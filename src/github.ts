@@ -49,7 +49,6 @@ export async function upsertComment(options: {
     console.log(
       `Failed to locate a PR associated with the Action context, skipping Snapshot info comment...`
     );
-    return;
   }
 
   let commentBody = options.upgradeResult.upgraded
