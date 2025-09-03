@@ -48018,6 +48018,7 @@ ${packages.map((t2) => `| \`${t2.name}\` | \`${t2.version}\` |`).join("\n")}`;
 async function upsertComment(options) {
   const octokit = github.getOctokit(options.token);
   const issue_number = github.context.issue.number || github.context.payload.pull_request?.number;
+  console.log(`Attempting to upsert comment for issue number: ${issue_number}`);
   if (!issue_number) {
     console.log(
       `Failed to locate a PR associated with the Action context, skipping Snapshot info comment...`
@@ -48029,9 +48030,15 @@ async function upsertComment(options) {
 The latest changes of this PR are available as:
 ${formatTable(
     options.upgradeResult.upgradedPackages
-  )}` : `Nothing were upgraded, since there are no linked \`changesets\` for this PR.`;
+  )}` : `Nothing was upgraded, so no snapshot comment will be posted.`;
   commentBody = `${SNAPSHOT_COMMENT_IDENTIFIER}
 ${commentBody}`;
+  console.log(`Comment body to be posted:
+${commentBody}`);
+  if (!options.upgradeResult.upgraded) {
+    console.log("Skipping comment creation because no packages were upgraded.");
+    return;
+  }
   const existingComments = await octokit.rest.issues.listComments({
     ...github.context.repo,
     issue_number,
@@ -48042,7 +48049,7 @@ ${commentBody}`;
   );
   if (existingComment) {
     console.info(
-      `Found an existing comment, doing a comment update...`,
+      `Found an existing comment with id: ${existingComment.id}, doing a comment update...`,
       existingComment
     );
     const response = await octokit.rest.issues.updateComment({
@@ -48052,7 +48059,7 @@ ${commentBody}`;
     });
     console.log(`GitHub API response:`, response.status);
   } else {
-    console.info(`Did not found an existing comment, creating comment..`);
+    console.info(`Did not find an existing comment, creating a new comment...`);
     const response = await octokit.rest.issues.createComment({
       ...github.context.repo,
       body: commentBody,
