@@ -213,7 +213,6 @@ import { exitPre } from "./pre";
       await upsertComment({
         token: githubToken,
         upgradeResult: { upgraded, upgradedPackages },
-        tagName: mode,
       });
     } catch (e) {
       core.info(`Failed to create/update github comment.`);

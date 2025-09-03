@@ -38,17 +38,17 @@ function formatTable(packages: PublishedPackage[]): string {
 }
 
 export async function upsertComment(options: {
-  tagName: string;
   token: string;
   upgradeResult: UpgradeResult;
 }) {
   const octokit = github.getOctokit(options.token);
-  const issueContext = github.context.issue;
+  const issue_number = github.context.issue.number || github.context.payload.pull_request?.number;
 
-  if (!issueContext?.number) {
+  if (!issue_number) {
     console.log(
       `Failed to locate a PR associated with the Action context, skipping Snapshot info comment...`
     );
+    return;
   }
 
   let commentBody = options.upgradeResult.upgraded
@@ -61,7 +61,7 @@ export async function upsertComment(options: {
 
   const existingComments = await octokit.rest.issues.listComments({
     ...github.context.repo,
-    issue_number: issueContext.number,
+    issue_number,
     per_page: 100,
   });
 
@@ -88,7 +88,7 @@ export async function upsertComment(options: {
     const response = await octokit.rest.issues.createComment({
       ...github.context.repo,
       body: commentBody,
-      issue_number: issueContext.number,
+      issue_number,
     });
 
     console.log(`GitHub API response:`, response.status);

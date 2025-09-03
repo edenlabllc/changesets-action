@@ -48017,11 +48017,12 @@ ${packages.map((t2) => `| \`${t2.name}\` | \`${t2.version}\` |`).join("\n")}`;
 }
 async function upsertComment(options) {
   const octokit = github.getOctokit(options.token);
-  const issueContext = github.context.issue;
-  if (!issueContext?.number) {
+  const issue_number = github.context.issue.number || github.context.payload.pull_request?.number;
+  if (!issue_number) {
     console.log(
       `Failed to locate a PR associated with the Action context, skipping Snapshot info comment...`
     );
+    return;
   }
   let commentBody = options.upgradeResult.upgraded ? `### \u{1F680} Snapshot Release
 
@@ -48033,7 +48034,7 @@ ${formatTable(
 ${commentBody}`;
   const existingComments = await octokit.rest.issues.listComments({
     ...github.context.repo,
-    issue_number: issueContext.number,
+    issue_number,
     per_page: 100
   });
   const existingComment = existingComments.data.find(
@@ -48055,7 +48056,7 @@ ${commentBody}`;
     const response = await octokit.rest.issues.createComment({
       ...github.context.repo,
       body: commentBody,
-      issue_number: issueContext.number
+      issue_number
     });
     console.log(`GitHub API response:`, response.status);
   }
@@ -48254,8 +48255,7 @@ password ${githubToken}`
     try {
       await upsertComment({
         token: githubToken,
-        upgradeResult: { upgraded, upgradedPackages },
-        tagName: mode
+        upgradeResult: { upgraded, upgradedPackages }
       });
     } catch (e2) {
       core.info(`Failed to create/update github comment.`);
