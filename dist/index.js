@@ -48017,6 +48017,10 @@ ${packages.map((t2) => `| \`${t2.name}\` | \`${t2.version}\` |`).join("\n")}`;
 }
 async function upsertComment(options) {
   const octokit = github.getOctokit(options.token);
+  console.log(`GitHub context eventName: ${github.context.eventName}`);
+  console.log(`GitHub context issue:`, JSON.stringify(github.context.issue, null, 2));
+  console.log(`GitHub context payload keys:`, Object.keys(github.context.payload));
+  console.log(`GitHub context payload.pull_request:`, JSON.stringify(github.context.payload.pull_request, null, 2));
   const issue_number = github.context.issue.number || github.context.payload.pull_request?.number;
   console.log(`Attempting to upsert comment for issue number: ${issue_number}`);
   if (!issue_number) {
