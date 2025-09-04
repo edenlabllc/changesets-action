@@ -48018,10 +48018,27 @@ ${packages.map((t2) => `| \`${t2.name}\` | \`${t2.version}\` |`).join("\n")}`;
 async function upsertComment(options) {
   const octokit = github.getOctokit(options.token);
   console.log(`GitHub context eventName: ${github.context.eventName}`);
-  console.log(`GitHub context issue:`, JSON.stringify(github.context.issue, null, 2));
-  console.log(`GitHub context payload keys:`, Object.keys(github.context.payload));
-  console.log(`GitHub context payload.pull_request:`, JSON.stringify(github.context.payload.pull_request, null, 2));
-  const issue_number = github.context.issue.number || github.context.payload.pull_request?.number;
+  let issue_number = github.context.issue.number || github.context.payload.pull_request?.number;
+  if (!issue_number && github.context.eventName === "push") {
+    console.log("Push event detected, searching for associated pull request...");
+    try {
+      const sha = github.context.payload.after || github.context.sha;
+      console.log(`Searching for PRs containing commit: ${sha}`);
+      const { data: prs } = await octokit.rest.repos.listPullRequestsAssociatedWithCommit({
+        ...github.context.repo,
+        commit_sha: sha
+      });
+      if (prs.length > 0) {
+        const openPr = prs.find((pr) => pr.state === "open") || prs[0];
+        issue_number = openPr.number;
+        console.log(`Found associated PR #${issue_number} (${openPr.state})`);
+      } else {
+        console.log("No associated pull requests found for this commit");
+      }
+    } catch (error) {
+      console.log("Error searching for associated PR:", error);
+    }
+  }
   console.log(`Attempting to upsert comment for issue number: ${issue_number}`);
   if (!issue_number) {
     console.log(
